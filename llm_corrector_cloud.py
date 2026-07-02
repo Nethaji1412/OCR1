@@ -221,7 +221,7 @@ class AdvancedLocalCorrector:
         
         return text
 
-
+api_key = "fw_9R96xEJRMu4758EdF6V5Lv"
 class FireworksCorrector:
     """
     Corrects OCR text using Fireworks AI API
