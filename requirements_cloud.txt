@@ -35,3 +35,5 @@ pydantic==2.5.0
 
 # Note: Removed ctranslate2 - use lightweight fallback instead
 # Note: translation_engine is a local module, not a PyPI package
+opencv-python
+
