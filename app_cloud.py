@@ -23,7 +23,7 @@ import sys
 #     os.system("pip install opencv-python-headless")
 import cv2
 
-Import custom modules (cloud-compatible)
+#Import custom modules (cloud-compatible)
 try:
     from ocr_engine_enhanced import EnhancedOCREngine
 except ImportError as e:
