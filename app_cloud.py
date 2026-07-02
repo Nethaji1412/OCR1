@@ -15,13 +15,13 @@ from datetime import datetime
 import json
 import sys
 
-# Fix OpenCV import
-try:
-    import cv2
-except ImportError:
-    print("Installing opencv-python...")
-    os.system("pip install opencv-python-headless")
-    import cv2
+# # Fix OpenCV import
+# try:
+#     import cv2
+# except ImportError:
+#     print("Installing opencv-python...")
+#     os.system("pip install opencv-python-headless")
+#     import cv2
 
 # Import custom modules (cloud-compatible)
 try:
