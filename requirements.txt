@@ -4,7 +4,7 @@ streamlit==1.28.1
 
 paddleocr
 
-opencv-python-headless
+opencv-python-headless>=4.10
 
 Pillow
 
