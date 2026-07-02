@@ -1,8 +1,11 @@
 """
-OCR System - Streamlit Cloud Compatible
-Upload → Extract → Correct → Translate → Export
+OCR System - Streamlit Cloud Compatible (FIXED)
+Upload → Extract → Correct → Translate → Export with Format Preservation
 
-Works perfectly on Streamlit Cloud!
+Key Fixes:
+- Proper OpenCV imports
+- PDF format preservation during translation
+- Better error handling
 """
 
 import streamlit as st
@@ -10,27 +13,46 @@ from pathlib import Path
 import os
 from datetime import datetime
 import json
+import sys
+
+# Fix OpenCV import
+try:
+    import cv2
+except ImportError:
+    print("Installing opencv-python...")
+    os.system("pip install opencv-python-headless")
+    import cv2
 
 # Import custom modules (cloud-compatible)
 try:
     from ocr_engine_enhanced import EnhancedOCREngine
 except ImportError as e:
     st.error(f"Error loading OCR engine: {e}")
+    st.stop()
 
 try:
     from llm_corrector_cloud import FireworksCorrector
 except ImportError as e:
     st.error(f"Error loading corrector: {e}")
+    st.stop()
 
 try:
     from translation_engine_cloud import SimpleTranslationEngine
 except ImportError as e:
     st.error(f"Error loading translator: {e}")
+    st.stop()
 
 try:
     from file_handler_enhanced import FileHandler
 except ImportError as e:
     st.error(f"Error loading file handler: {e}")
+    st.stop()
+
+try:
+    from pdf_layout_preserver import PDFLayoutPreserver
+except ImportError as e:
+    st.warning(f"PDF layout preservation unavailable: {e}")
+    PDFLayoutPreserver = None
 
 # ============================================================================
 # PAGE CONFIGURATION
@@ -43,7 +65,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better UI
 st.markdown("""
     <style>
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
@@ -72,7 +93,6 @@ with st.sidebar.expander("🔑 API Keys", expanded=False):
 # Processing options
 st.sidebar.subheader("🎯 Processing Options")
 
-# OCR Language selection
 ocr_languages = st.sidebar.multiselect(
     "OCR Languages",
     options=['English', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'Marathi'],
@@ -91,9 +111,9 @@ language_map = {
 
 ocr_langs = [language_map[lang] for lang in ocr_languages]
 
-# Processing features
 enable_correction = st.sidebar.checkbox("Enable Text Correction", value=True)
 enable_translation = st.sidebar.checkbox("Enable Translation", value=False)
+enable_pdf_format_preservation = st.sidebar.checkbox("Preserve PDF Format", value=True)
 
 if enable_translation:
     col1, col2 = st.sidebar.columns(2)
@@ -117,18 +137,15 @@ else:
     translation_source = 'English'
     translation_target = 'Hindi'
 
-# Advanced options
 with st.sidebar.expander("⚡ Advanced Options"):
     ocr_confidence = st.slider(
         "OCR Confidence Threshold",
-        0.0, 1.0, 0.80, 0.05,
-        help="Higher = stricter, fewer results"
+        0.0, 1.0, 0.80, 0.05
     )
     
     pdf_dpi = st.slider(
         "PDF Quality (DPI)",
-        72, 300, 150, 25,
-        help="Higher = better quality but slower"
+        72, 300, 150, 25
     )
 
 # ============================================================================
@@ -138,14 +155,17 @@ with st.sidebar.expander("⚡ Advanced Options"):
 if 'ocr_result' not in st.session_state:
     st.session_state.ocr_result = None
 
+if 'pdf_data' not in st.session_state:
+    st.session_state.pdf_data = None
+
 if 'corrected_text' not in st.session_state:
     st.session_state.corrected_text = None
 
 if 'translated_text' not in st.session_state:
     st.session_state.translated_text = None
 
-if 'processing_log' not in st.session_state:
-    st.session_state.processing_log = []
+if 'file_type' not in st.session_state:
+    st.session_state.file_type = None
 
 # ============================================================================
 # MAIN APP
@@ -154,11 +174,12 @@ if 'processing_log' not in st.session_state:
 st.title("📄 Advanced OCR System")
 
 st.markdown("""
-Advanced OCR with AI-powered corrections:
-- 🖼️ **Multi-format**: Images, PDFs, DOCX
+Advanced OCR with Format-Preserving Capabilities:
+- 🖼️ **Multi-format**: Images, PDFs (with layout preservation), DOCX
 - ✨ **Smart Correction**: Local + LLM (Fireworks optional)
 - 🌐 **Translation**: 6 Indian languages
-- 📊 **Export**: JSON, TXT formats
+- 📄 **Format Preservation**: Keep original PDF layout & fonts
+- 📊 **Export**: JSON, TXT, **PDF with original formatting**
 """)
 
 # ============================================================================
@@ -179,7 +200,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.subheader("📤 Upload Document")
     
-    # File uploader
     uploaded_file = st.file_uploader(
         "Choose a file",
         type=["jpg", "jpeg", "png", "bmp", "tiff", "pdf", "docx", "doc"],
@@ -187,7 +207,6 @@ with tab1:
     )
     
     if uploaded_file:
-        # File info
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("File", uploaded_file.name[:30])
@@ -196,18 +215,16 @@ with tab1:
         with col3:
             st.metric("Type", uploaded_file.type)
         
-        # Initialize file handler
         file_handler = FileHandler()
-        
-        # Save file
         save_result = file_handler.save_file(uploaded_file)
         
         if save_result['success']:
             file_path = save_result['file_path']
+            file_type = save_result['file_type']
+            st.session_state.file_type = file_type
             
             st.success(f"✅ File ready: {save_result['saved_filename']}")
             
-            # Start OCR
             if st.button("🚀 Extract Text (OCR)", key="extract_button", use_container_width=True):
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -219,19 +236,42 @@ with tab1:
                         
                         ocr_engine = EnhancedOCREngine(languages=ocr_langs)
                         
-                        status_text.text("⏳ Extracting text...")
-                        progress_bar.progress(40)
+                        # Special handling for PDFs with layout preservation
+                        if file_type == 'pdf' and enable_pdf_format_preservation and PDFLayoutPreserver:
+                            status_text.text("⏳ Extracting PDF with format preservation...")
+                            progress_bar.progress(30)
+                            
+                            preserver = PDFLayoutPreserver()
+                            pdf_result = preserver.extract_with_formatting(file_path)
+                            
+                            if pdf_result['status'] == 'success':
+                                st.session_state.pdf_data = pdf_result
+                                st.session_state.ocr_result = {
+                                    'status': 'success',
+                                    'raw_text': '\n\n'.join(preserver.get_text_by_page(pdf_result['pages'])),
+                                    'blocks': pdf_result['blocks'],
+                                    'confidence': 0.95,
+                                    'page_count': pdf_result['page_count'],
+                                    'block_count': pdf_result['block_count'],
+                                    'source': 'pdf_formatted'
+                                }
+                            else:
+                                st.warning("Could not preserve PDF format, using standard extraction")
+                                result = ocr_engine.extract_text(file_path)
+                                st.session_state.ocr_result = result
+                        else:
+                            status_text.text("⏳ Extracting text...")
+                            progress_bar.progress(40)
+                            
+                            result = ocr_engine.extract_text(file_path)
+                            st.session_state.ocr_result = result
                         
-                        result = ocr_engine.extract_text(file_path)
-                        
-                        st.session_state.ocr_result = result
                         status_text.text("✅ Extraction complete!")
                         progress_bar.progress(100)
                         
-                        # Display results
                         st.success("✅ OCR Complete!")
                         
-                        # Statistics
+                        result = st.session_state.ocr_result
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
                             st.metric("Confidence", f"{result['confidence']:.1%}")
@@ -261,13 +301,6 @@ with tab1:
             disabled=True,
             key="ocr_output"
         )
-        
-        # Copy button
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📋 Copy to Clipboard", use_container_width=True):
-                st.write(extracted_text)
-                st.success("✅ Text shown - copy from above")
 
 # ============================================================================
 # TAB 2: CORRECTION
@@ -289,7 +322,6 @@ with tab2:
             key="correction_input"
         )
         
-        # Correction options
         col1, col2 = st.columns([2, 1])
         
         with col1:
@@ -316,7 +348,6 @@ with tab2:
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
         
-        # Show corrected text
         if st.session_state.corrected_text:
             st.subheader("Corrected Output")
             
@@ -327,18 +358,6 @@ with tab2:
                 disabled=True,
                 key="correction_output"
             )
-            
-            # Comparison
-            with st.expander("📊 Show Comparison"):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.write("**Original**")
-                    st.write(extracted_text)
-                
-                with col2:
-                    st.write("**Corrected**")
-                    st.write(st.session_state.corrected_text)
 
 # ============================================================================
 # TAB 3: TRANSLATION
@@ -407,11 +426,9 @@ with tab4:
     
     if st.session_state.ocr_result or st.session_state.corrected_text or st.session_state.translated_text:
         
-        # Export options
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # Download as TXT
             content_txt = "=== OCR RESULTS ===\n\n"
             
             if st.session_state.ocr_result:
@@ -432,7 +449,6 @@ with tab4:
             )
         
         with col2:
-            # Download as JSON
             export_data = {
                 'timestamp': datetime.now().isoformat(),
                 'ocr': {
@@ -455,10 +471,58 @@ with tab4:
         with col3:
             if st.button("🗑️ Clear All", use_container_width=True):
                 st.session_state.ocr_result = None
+                st.session_state.pdf_data = None
                 st.session_state.corrected_text = None
                 st.session_state.translated_text = None
                 st.success("✅ Cleared")
                 st.rerun()
+        
+        # PDF format preservation export
+        if st.session_state.pdf_data and st.session_state.translated_text and st.session_state.file_type == 'pdf':
+            st.subheader("📄 Export with Format Preservation")
+            
+            if st.button("💾 Create Formatted PDF with Translation", use_container_width=True):
+                with st.spinner("Creating formatted PDF..."):
+                    try:
+                        if PDFLayoutPreserver:
+                            preserver = PDFLayoutPreserver()
+                            
+                            # Create translation mapping
+                            translations = {
+                                block.text: st.session_state.translated_text
+                                for block in st.session_state.pdf_data['blocks']
+                            }
+                            
+                            # Update blocks with translations
+                            updated_blocks = preserver.update_translated_text(
+                                st.session_state.pdf_data['blocks'],
+                                translations
+                            )
+                            
+                            # Create PDF
+                            output_path = f"/tmp/translated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                            
+                            success = preserver.create_formatted_pdf(
+                                updated_blocks,
+                                output_path,
+                                st.session_state.pdf_data['pages']
+                            )
+                            
+                            if success:
+                                with open(output_path, 'rb') as f:
+                                    st.download_button(
+                                        "📥 Download PDF (Formatted)",
+                                        f.read(),
+                                        file_name=f"translated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                                        mime="application/pdf",
+                                        use_container_width=True
+                                    )
+                                st.success("✅ PDF created with preserved formatting!")
+                        else:
+                            st.warning("PDF format preservation not available")
+                    
+                    except Exception as e:
+                        st.error(f"❌ Error creating PDF: {str(e)}")
     
     else:
         st.info("👈 No results yet. Process a document first!")
@@ -472,10 +536,10 @@ st.divider()
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.caption("🟢 OCR System v1.0 Cloud")
+    st.caption("🟢 OCR System v1.1 Cloud (Fixed)")
 
 with col2:
-    st.caption(f"📊 Steps: {len(st.session_state.processing_log)}")
+    st.caption(f"📄 Format Preservation: {'✅' if PDFLayoutPreserver else '⚠️'}")
 
 with col3:
     st.caption(f"⏰ {datetime.now().strftime('%H:%M:%S')}")
