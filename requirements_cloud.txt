@@ -1,27 +1,41 @@
 streamlit==1.28.1
 
-paddleocr==2.7.0.3
-paddlepaddle>=2.6.1
+# OCR
+
+paddleocr
 
 opencv-python-headless
 
 Pillow
+
+# PDF & Documents
+
 PyMuPDF
+
 python-docx
+
 reportlab
 
-numpy
-pandas
+# NLP
+
+spacy
+
+language-tool-python
+
+fasttext-wheel
+
+textblob
+
+nltk
+
+# Utilities
 
 requests
 
-spacy
-language-tool-python
+numpy
 
-fasttext
+pandas
 
 python-dotenv
-pydantic
 
-textblob
-nltk
+pydantic
