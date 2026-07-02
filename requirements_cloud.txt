@@ -1,19 +1,21 @@
 # Advanced OCR System - Streamlit Cloud Compatible Requirements
 # Python 3.10+
-# Lightweight versions for cloud deployment
+# FIXED: Includes proper OpenCV dependency
 
 # Core Framework
 streamlit==1.28.1
 
-# OCR & Vision
+# OCR & Vision (FIXED: Both regular and headless)
 paddleocr==2.7.0.3
 paddlepaddle==2.5.1
 opencv-python-headless==4.8.1.78
+opencv-python==4.8.1.78
 Pillow==10.1.0
 
 # PDF & Document Processing
 PyMuPDF==1.23.8
 python-docx==0.8.11
+reportlab==4.0.4
 
 # NLP & Text Processing
 spacy==3.7.2
@@ -32,8 +34,10 @@ pandas==2.1.3
 # Utilities
 python-dotenv==1.0.0
 pydantic==2.5.0
+textblob==0.17.1
+
+# Spell checking and grammar
+nltk==3.8.1
 
 # Note: Removed ctranslate2 - use lightweight fallback instead
 # Note: translation_engine is a local module, not a PyPI package
-opencv-python
-
