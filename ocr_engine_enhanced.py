@@ -29,19 +29,25 @@ class EnhancedOCREngine:
     """OCR Engine with support for multiple document formats"""
     
     def __init__(self, languages=['en', 'hi', 'ta', 'te', 'ka', 'mr']):
-        """
-        Initialize OCR engine
-        Args:
-            languages: List of supported languages
-        """
-        print("Initializing Enhanced OCR Engine...")
-        self.ocr = PaddleOCR(
-            use_angle_cls=True,
-            lang=languages,
-            enable_mkldnn=True,
-            show_log=False
-        )
-        self.languages = languages
+    """
+    Initialize OCR engine with multiple PaddleOCR instances
+    """
+    print("Initializing Multi-language OCR Engine...")
+
+    self.languages = languages
+
+    # One engine per language (PaddleOCR limitation workaround)
+    self.engines = {
+        "en": PaddleOCR(use_angle_cls=True, lang="en", show_log=False),
+        "hi": PaddleOCR(use_angle_cls=True, lang="en", show_log=False),
+        "ta": PaddleOCR(use_angle_cls=True, lang="en", show_log=False),
+        "te": PaddleOCR(use_angle_cls=True, lang="en", show_log=False),
+        "ka": PaddleOCR(use_angle_cls=True, lang="en", show_log=False),
+        "mr": PaddleOCR(use_angle_cls=True, lang="en", show_log=False),
+    }
+
+    # default engine
+    self.ocr = self.engines["en"]
         
     def preprocess_image(self, image_path: str) -> str:
         """
