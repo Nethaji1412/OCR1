@@ -3,7 +3,7 @@ Enhanced OCR Engine with PDF/DOC Support
 Handles images, PDFs, and maintains formatting
 """
 
-import cv2
+import cv
 import numpy as np
 from paddleocr import PaddleOCR
 from PIL import Image
@@ -47,26 +47,26 @@ class EnhancedOCREngine:
         """
         Preprocess image for better OCR accuracy
         """
-        img = cv2.imread(image_path)
+        img = cv.imread(image_path)
         if img is None:
             raise ValueError(f"Could not read image: {image_path}")
         
         # Convert to grayscale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         
         # Apply thresholding
-        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+        _, binary = cv.threshold(gray, 127, 255, cv.THRESH_BINARY)
         
         # Denoise
-        denoised = cv2.fastNlMeansDenoising(binary, h=10)
+        denoised = cv.fastNlMeansDenoising(binary, h=10)
         
         # Enhance contrast
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        clahe = cv.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(denoised)
         
         # Save preprocessed image
         temp_path = image_path + '_processed.jpg'
-        cv2.imwrite(temp_path, enhanced)
+        cv.imwrite(temp_path, enhanced)
         
         return temp_path
     
